@@ -1,0 +1,10 @@
+world=/home/fandes/terraria-server/worlds/可爱的树懒深沟.wld
+autocreate=3
+worldname=fandes-server
+difficulty=0
+maxplayers=8
+port=7777
+password=
+motd=欢迎来到我的Terraria服务器！
+worldpath=/home/fandes/terraria-server/worlds
+banlist=/home/fandes/terraria-server/banlist.txt
