@@ -523,7 +523,7 @@ list_all_worlds() {
                 world_exists="存在"
             fi
             
-            if tmux has-session -t "terraria_$world_name" 2>/dev/null; then
+            if tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -Fxq "terraria_$world_name"; then
                 status="运行中"
             fi
             
@@ -560,7 +560,7 @@ manage_world_status() {
             local port=$(grep "^port=" "$config_file" | cut -d'=' -f2)
             local status="未运行"
             
-            if tmux has-session -t "terraria_$world_name" 2>/dev/null; then
+            if tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -Fxq "terraria_$world_name"; then
                 status="运行中"
             fi
             
@@ -642,7 +642,7 @@ start_world() {
     local world_name="$1"
     log_info "启动世界: $world_name"
     
-    if tmux has-session -t "terraria_$world_name" 2>/dev/null; then
+    if tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -Fxq "terraria_$world_name"; then
         log_warning "世界 '$world_name' 已在运行中"
         return
     fi
@@ -659,7 +659,7 @@ stop_world() {
     local world_name="$1"
     log_info "停止世界: $world_name"
     
-    if ! tmux has-session -t "terraria_$world_name" 2>/dev/null; then
+    if ! tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -Fxq "terraria_$world_name"; then
         log_warning "世界 '$world_name' 未运行"
         return
     fi
@@ -685,7 +685,7 @@ restart_world() {
 connect_to_console() {
     local world_name="$1"
     
-    if ! tmux has-session -t "terraria_$world_name" 2>/dev/null; then
+    if ! tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -Fxq "terraria_$world_name"; then
         log_error "世界 '$world_name' 未运行"
         return
     fi
@@ -963,7 +963,7 @@ show_autostart_status() {
             fi
             
             # 检查tmux会话是否运行
-            if tmux has-session -t "terraria_$world_name" 2>/dev/null; then
+            if tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -Fxq "terraria_$world_name"; then
                 running_status="运行中"
             fi
             
