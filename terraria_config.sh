@@ -756,45 +756,51 @@ setup_autostart() {
 
 # 配置所有世界自启动
 setup_all_autostart() {
-    log_info "配置所有世界的systemd自启动服务..."
+    log_info "配置所有世界的统一自启动服务..."
     
-    # 复制服务模板到系统目录
-    if [ -f "$SERVER_DIR/configs/terraria@.service" ]; then
-        sudo cp "$SERVER_DIR/configs/terraria@.service" /etc/systemd/system/
+    # 复制统一服务模板到系统目录
+    if [ -f "$SCRIPT_DIR/terraria-master.service" ]; then
+        sudo cp "$SCRIPT_DIR/terraria-master.service" /etc/systemd/system/
         sudo systemctl daemon-reload
-        log_success "systemd服务模板已安装"
+        log_success "Terraria统一服务模板已安装"
     else
-        log_error "未找到服务模板文件"
+        log_error "未找到统一服务模板文件"
         return
     fi
     
+    # 将所有世界添加到自启动配置文件
+    local autostart_config="$SCRIPT_DIR/autostart.conf"
     local enabled_count=0
+    
+    # 清空现有配置（保留注释）
+    sed -i '/^[^#]/d' "$autostart_config"
+    
     while IFS= read -r config_file; do
         if [ -f "$config_file" ]; then
             local world_name=$(basename "$config_file" .config)
             
-            # 启用并启动服务
-            if sudo systemctl enable "terraria@$world_name" 2>/dev/null; then
-                log_success "世界 '$world_name' 自启动已启用"
-                enabled_count=$((enabled_count + 1))
-            else
-                log_error "世界 '$world_name' 自启动配置失败"
-            fi
+            # 添加到自启动配置文件
+            echo "$world_name" >> "$autostart_config"
+            log_success "世界 '$world_name' 已添加到自启动列表"
+            enabled_count=$((enabled_count + 1))
         fi
     done < <(find "$SERVER_DIR/worlds" -name "*.config" -type f 2>/dev/null)
     
+    # 启用统一服务
+    if sudo systemctl enable terraria-master 2>/dev/null; then
+        log_success "Terraria统一服务已启用"
+    else
+        log_error "启用统一服务失败"
+        return
+    fi
+    
     log_success "共配置了 $enabled_count 个世界的自启动"
     
-    log_input "是否立即启动所有世界服务？[y/N]:"
-    read -p "> " START_SERVICES
-    if [[ $START_SERVICES =~ ^[Yy]$ ]]; then
-        while IFS= read -r config_file; do
-            if [ -f "$config_file" ]; then
-                local world_name=$(basename "$config_file" .config)
-                sudo systemctl start "terraria@$world_name"
-                log_info "启动服务: terraria@$world_name"
-            fi
-        done < <(find "$SERVER_DIR/worlds" -name "*.config" -type f 2>/dev/null)
+    log_input "是否立即启动统一服务？[y/N]:"
+    read -p "> " START_SERVICE
+    if [[ $START_SERVICE =~ ^[Yy]$ ]]; then
+        sudo systemctl start terraria-master
+        log_success "Terraria统一服务已启动"
     fi
 }
 
@@ -802,6 +808,8 @@ setup_all_autostart() {
 setup_single_autostart() {
     # 列出所有世界
     local worlds=()
+    local autostart_config="$SCRIPT_DIR/autostart.conf"
+    
     while IFS= read -r config_file; do
         if [ -f "$config_file" ]; then
             local world_name=$(basename "$config_file" .config)
@@ -813,7 +821,8 @@ setup_single_autostart() {
     local i=1
     for world_name in "${worlds[@]}"; do
         local status="未启用"
-        if systemctl is-enabled "terraria@$world_name" &>/dev/null; then
+        # 检查是否在自启动配置文件中
+        if grep -q "^${world_name}$" "$autostart_config" 2>/dev/null; then
             status="已启用"
         fi
         printf "%2d) %-20s (自启动: %s)\n" $i "$world_name" "$status"
@@ -847,46 +856,74 @@ setup_single_autostart() {
     
     case $action in
         1)
-            if [ ! -f /etc/systemd/system/terraria@.service ]; then
-                sudo cp "$SERVER_DIR/configs/terraria@.service" /etc/systemd/system/
-                sudo systemctl daemon-reload
+            # 确保统一服务已安装
+            if [ ! -f /etc/systemd/system/terraria-master.service ]; then
+                if [ -f "$SCRIPT_DIR/terraria-master.service" ]; then
+                    sudo cp "$SCRIPT_DIR/terraria-master.service" /etc/systemd/system/
+                    sudo systemctl daemon-reload
+                    sudo systemctl enable terraria-master
+                    log_success "Terraria统一服务已安装并启用"
+                else
+                    log_error "未找到统一服务模板文件"
+                    return
+                fi
             fi
             
-            sudo systemctl enable "terraria@$world_name"
-            log_success "世界 '$world_name' 自启动已启用"
+            # 添加到自启动配置文件（如果不存在）
+            if ! grep -q "^${world_name}$" "$autostart_config" 2>/dev/null; then
+                echo "$world_name" >> "$autostart_config"
+                log_success "世界 '$world_name' 已添加到自启动列表"
+            else
+                log_info "世界 '$world_name' 已在自启动列表中"
+            fi
             
-            log_input "是否立即启动服务？[y/N]:"
-            read -p "> " START_SERVICE
-            if [[ $START_SERVICE =~ ^[Yy]$ ]]; then
-                sudo systemctl start "terraria@$world_name"
-                log_success "服务已启动"
+            log_input "是否立即重载统一服务？[y/N]:"
+            read -p "> " RELOAD_SERVICE
+            if [[ $RELOAD_SERVICE =~ ^[Yy]$ ]]; then
+                sudo systemctl reload terraria-master 2>/dev/null || sudo systemctl restart terraria-master
+                log_success "统一服务已重载"
             fi
             ;;
         2)
-            sudo systemctl disable "terraria@$world_name"
-            sudo systemctl stop "terraria@$world_name" 2>/dev/null || true
-            log_success "世界 '$world_name' 自启动已禁用"
+            # 从自启动配置文件中移除
+            if grep -q "^${world_name}$" "$autostart_config" 2>/dev/null; then
+                sed -i "/^${world_name}$/d" "$autostart_config"
+                log_success "世界 '$world_name' 已从自启动列表中移除"
+                
+                log_input "是否立即重载统一服务？[y/N]:"
+                read -p "> " RELOAD_SERVICE
+                if [[ $RELOAD_SERVICE =~ ^[Yy]$ ]]; then
+                    sudo systemctl reload terraria-master 2>/dev/null || sudo systemctl restart terraria-master
+                    log_success "统一服务已重载"
+                fi
+            else
+                log_info "世界 '$world_name' 未在自启动列表中"
+            fi
             ;;
     esac
 }
 
 # 禁用所有自启动
 disable_all_autostart() {
-    log_info "禁用所有世界的自启动服务..."
+    log_info "禁用所有世界的统一自启动服务..."
     
+    local autostart_config="$SCRIPT_DIR/autostart.conf"
+    
+    # 停止并禁用统一服务
+    if systemctl is-enabled terraria-master &>/dev/null; then
+        sudo systemctl stop terraria-master 2>/dev/null || true
+        sudo systemctl disable terraria-master
+        log_success "Terraria统一服务已停止并禁用"
+    fi
+    
+    # 清空自启动配置文件（保留注释）
     local disabled_count=0
-    while IFS= read -r config_file; do
-        if [ -f "$config_file" ]; then
-            local world_name=$(basename "$config_file" .config)
-            
-            if systemctl is-enabled "terraria@$world_name" &>/dev/null; then
-                sudo systemctl disable "terraria@$world_name"
-                sudo systemctl stop "terraria@$world_name" 2>/dev/null || true
-                log_success "世界 '$world_name' 自启动已禁用"
-                disabled_count=$((disabled_count + 1))
-            fi
-        fi
-    done < <(find "$SERVER_DIR/worlds" -name "*.config" -type f 2>/dev/null)
+    if [ -f "$autostart_config" ]; then
+        # 计算被禁用的世界数量
+        disabled_count=$(grep -v "^#" "$autostart_config" | grep -v "^$" | wc -l)
+        # 清空非注释行
+        sed -i '/^[^#]/d' "$autostart_config"
+    fi
     
     log_success "共禁用了 $disabled_count 个世界的自启动"
 }
@@ -894,6 +931,22 @@ disable_all_autostart() {
 # 显示自启动状态
 show_autostart_status() {
     echo "自启动服务状态:"
+    echo "--------------------------------------------------------------------------------"
+    
+    local autostart_config="$SCRIPT_DIR/autostart.conf"
+    local master_service_status="未启用"
+    local master_running_status="未运行"
+    
+    # 检查统一服务状态
+    if systemctl is-enabled terraria-master &>/dev/null; then
+        master_service_status="已启用"
+    fi
+    
+    if systemctl is-active terraria-master &>/dev/null; then
+        master_running_status="运行中"
+    fi
+    
+    echo "Terraria统一服务状态: $master_service_status ($master_running_status)"
     echo "--------------------------------------------------------------------------------"
     printf "%-20s %-12s %-12s\n" "世界名称" "自启动状态" "运行状态"
     echo "--------------------------------------------------------------------------------"
@@ -904,11 +957,13 @@ show_autostart_status() {
             local autostart_status="未启用"
             local running_status="未运行"
             
-            if systemctl is-enabled "terraria@$world_name" &>/dev/null; then
+            # 检查是否在自启动配置文件中
+            if grep -q "^${world_name}$" "$autostart_config" 2>/dev/null; then
                 autostart_status="已启用"
             fi
             
-            if systemctl is-active "terraria@$world_name" &>/dev/null; then
+            # 检查tmux会话是否运行
+            if tmux has-session -t "terraria_$world_name" 2>/dev/null; then
                 running_status="运行中"
             fi
             

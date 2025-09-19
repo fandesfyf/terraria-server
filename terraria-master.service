@@ -1,0 +1,17 @@
+[Unit]
+Description=Terraria Master Server Manager
+After=network.target
+
+[Service]
+Type=oneshot
+User=fandes
+WorkingDirectory=/home/fandes/workspace/terraria
+ExecStart=/home/fandes/workspace/terraria/start_all_worlds.sh
+ExecStop=/home/fandes/workspace/terraria/stop_all_worlds.sh
+ExecReload=/home/fandes/workspace/terraria/reload_all_worlds.sh
+Restart=no
+Environment=TERM=xterm
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
