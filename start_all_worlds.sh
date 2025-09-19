@@ -63,18 +63,19 @@ while IFS= read -r line; do
     fi
     
     # 检查世界是否已经在运行
-    if tmux has-session -t "terraria_$world_name" 2>/dev/null; then
+    # 使用 tmux list-sessions 来精确匹配会话名称，避免中文字符问题
+    tmux_session_name="terraria_$world_name"
+    if tmux list-sessions -F "#{session_name}" 2>/dev/null | grep -Fxq "$tmux_session_name"; then
         log_message "世界 '$world_name' 已在运行中，跳过启动"
         continue
     fi
     
     # 启动世界
-    "$SERVER_DIR/scripts/start_${world_name}.sh"
-    if [ $? -eq 0 ]; then
+    if "$SERVER_DIR/scripts/start_${world_name}.sh" >> "$LOG_FILE" 2>&1; then
         log_message "世界 '$world_name' 启动成功"
         started_count=$((started_count + 1))
         # 等待一下再启动下一个世界，避免资源竞争
-        sleep 3
+        sleep 2
     else
         log_message "世界 '$world_name' 启动失败"
         failed_count=$((failed_count + 1))
