@@ -267,6 +267,11 @@ language=zh-Hans
 2. 防火墙规则：允许对应端口的TCP连接
 3. 确保服务器监听正确的端口
 
+### 其他
+- 远程组网：使用一些远程组网工具可以实现远程组网，然后好朋友们可以通过服务器IP加入游戏。
+- 远程组网工具有很多，类似蒲公英、[xedge](https://xedge.cc/)之类的
+- 推荐[xedge](https://xedge.cc/)，支持20个设备，玩Terraria一个月1gb流量，完全用不完
+
 ## 贡献
 
 欢迎提交Issue和Pull Request来改进这个工具！
